@@ -5,6 +5,7 @@ use Illuminate\Console\Command;
 use Illuminate\Foundation\Inspiring;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Process\Process;
 use DB;
 use Cache;
 use Request;
@@ -99,9 +100,19 @@ class CrudboosterInstallationCommand extends Command
 			$this->callSilent('vendor:publish',['--tag'=>'cb_lfm','--force'=>true]);
 			$this->callSilent('vendor:publish',['--tag'=>'cb_localization','--force'=>true]);	
 
+			$this->info('Dumping the autoloaded files and reloading all new files...');
+			$composer = $this->findComposer();
+	        $process = new Process($composer.' dumpautoload');
+	        $process->setWorkingDirectory(base_path())->run();
+
 			$this->info('Migrating database...');				
 			$this->call('migrate');
-			$this->call('db:seed',['--class' => 'CBSeeder']);
+
+			if (!class_exists('CBSeeder')) {
+	            require_once __DIR__.'/../publishable/database/seeds/CBSeeder.php';
+	        }
+			$this->call('db:seed',['--class' => 'CBSeeder']);			
+
 			$this->call('config:clear');
 			$this->call('optimize');
 
@@ -123,16 +134,21 @@ class CrudboosterInstallationCommand extends Command
 #  \____/_/ |_|\____/_____/_____/\____/\____/____/\__/\___/_/     
 #                                                                                                                       
 			");
-		$this->info('--------- :===: Thanks for choosing CRUDBooster :==: ---------------');
+		$this->info('--------- :===: Thanks for choosing CRUDBooster :===: --------------');
 		$this->info('====================================================================');
 	}
 
+	/** 
+	 * Show the footer section
+	 * 
+	 * @return mixed
+	 */
 	private function footer($success=true)
 	{
 		$this->info('--');
 		$this->info('Homepage : http://www.crudbooster.com');
-		$this->info('Github : https://github.com/crocodic-studio/crudbooster');
 		$this->info('Documentation : https://github.com/crocodic-studio/crudbooster/blob/master/docs/en/index.md');			
+		$this->info('Github : https://github.com/crocodic-studio/crudbooster');		
 
 		$this->info('====================================================================');
 		if($success==true) {
@@ -143,6 +159,11 @@ class CrudboosterInstallationCommand extends Command
 		exit;
 	}
 
+	/** 
+	 * Check the system requirements before install
+	 * 
+	 * @return mixed
+	 */
 	private function checkRequirements()
 	{
 		$this->info('System Requirements Checking:');
@@ -225,5 +246,18 @@ class CrudboosterInstallationCommand extends Command
 		}
 		$this->info('--');
 	}
+
+	/**
+     * Get the composer command for the environment.
+     *
+     * @return string
+     */
+    protected function findComposer()
+    {
+        if (file_exists(getcwd().'/composer.phar')) {
+            return '"'.PHP_BINARY.'" '.getcwd().'/composer.phar';
+        }
+        return 'composer';
+    }
 
 }
